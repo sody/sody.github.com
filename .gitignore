@@ -1,0 +1,8 @@
+.hg
+.git
+.svn
+.idea
+*.iml
+*.ipr
+*.iws
+target
