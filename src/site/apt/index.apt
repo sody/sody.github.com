@@ -1,0 +1,22 @@
+ ----
+ Contents
+ ----
+ sody
+ ----
+ 2011-03-15
+
+Contents
+
+  * {{{./site.html}Articles}}
+
+    * {{{./site.html}Site creating using maven}}. In process.
+
+    * {{{./spi.html}SPI mechanism usage}}. In process.
+
+  * {{{./ioc.html}Translates}}
+
+    * {{{./ioc.html}Inversion of Control}}
+
+    * {{{./injection.html}Inversion of Control Containers and the Dependency Injection pattern}}
+
+    * {{{./performance.html}Best Practices for Speeding Up Your Web Site}}

@@ -1,0 +1,62 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+		 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>com.github.sody</groupId>
+	<artifactId>site</artifactId>
+	<version>1.0-SNAPSHOT</version>
+	<packaging>pom</packaging>
+
+	<name>Sody's Site</name>
+	<url>http://sody.github.com/</url>
+	<description>
+		This is an example application that demonstrates creation of site for project using maven
+	</description>
+
+	<organization>
+		<name>sody</name>
+		<url>http://sody.github.com/</url>
+	</organization>
+
+	<developers>
+		<developer>
+			<id>sody</id>
+			<name>Ivan Khalopik</name>
+			<email>ikhalopik@gmail.com</email>
+			<timezone>+2</timezone>
+			<roles>
+				<role>Project Owner</role>
+			</roles>
+		</developer>
+	</developers>
+
+	<repositories>
+		<repository>
+			<id>sonatype-snapshots</id>
+			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
+		</repository>
+	</repositories>
+
+	<distributionManagement>
+		<site>
+			<id>sody-ghpages</id>
+			<url>file://${user.home}/sody.github.com/</url>
+		</site>
+	</distributionManagement>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-site-plugin</artifactId>
+				<version>2.2</version>
+				<configuration>
+					<inputEncoding>UTF-8</inputEncoding>
+					<outputEncoding>UTF-8</outputEncoding>
+					<locales>en,ru</locales>
+					<generateReports>false</generateReports>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+</project>
