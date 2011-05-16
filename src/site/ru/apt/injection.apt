@@ -1,11 +1,11 @@
  ----
- Inversion of Control Containers and the Dependency Injection pattern
+ IoC-контейнеры и шаблон проектирования "внедрение зависимостей"
  ----
- Martin Fowler
+ Мартин Фоулер
  ----
  2004-01-23
 
-Inversion of Control Containers and the Dependency Injection pattern
+IoC-контейнеры и шаблон проектирования "внедрение зависимостей"
 
   <In the Java community there's been a rush of lightweight containers that help to assemble components from different projects
   into a cohesive application. Underlying these containers is a common pattern to how they perform the wiring, a concept they

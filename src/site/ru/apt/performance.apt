@@ -1,21 +1,24 @@
  ----
- Best Practices for Speeding Up Your Web Site
+ Лучшие способы ускорения сайта
+ ----
+ Стив Содерс
  ----
 
-Best Practices for Speeding Up Your Web Site
+Лучшие способы ускорения сайта
 
-  The Exceptional Performance team has identified a number of best practices for making web pages fast. The list includes
-  35 best practices divided into 7 categories.
+  Команда исключительной производительности({{http://developer.yahoo.com/performance/rules.html}}) выявила ряд лучших
+  способов ускорения веб страниц. Они включают в себя 35 советов разделенных на 7 категорий.
 
-* Minimize HTTP Requests
+* Уменьшайте число HTTP-запросов
 
-  80% of the end-user response time is spent on the front-end. Most of this time is tied up in downloading all the components
-  in the page: images, stylesheets, scripts, Flash, etc. Reducing the number of components in turn reduces the number of HTTP
-  requests required to render the page. This is the key to faster pages.
+  80% времени отклика конечного пользователя тратится на клиентской части.
+  Большая часть времени связана с загрузкой всех компонентов страницы: рисунков, стилей, скриптов, флеш и т.д.
+  Уменьшение числа компонентов, в свою очередь, ведет к уменьшению числа HTTP-запросов, необходимых для отображения страницы.
+  Это ключ к ускорению страниц.
 
-  One way to reduce the number of components in the page is to simplify the page's design. But is there a way to build pages
-  with richer content while also achieving fast response times? Here are some techniques for reducing the number of HTTP
-  requests, while still supporting rich page designs.
+  Один из способов уменьшить число компонентов на странице - упрощение ее дизайна. Но есть ли возможность создавать страницы с
+  богатым содержимым, при этом достигая быстрого времени отклика? Вот несколько технологий для уменьшения числа
+  HTTP-запросов, поддерживая при этом богатый дизайн страницы.
 
   <<Combined files>> are a way to reduce the number of HTTP requests by combining all scripts into a single script, and
   similarly combining all CSS into a single stylesheet. Combining files is more challenging when the scripts and stylesheets
