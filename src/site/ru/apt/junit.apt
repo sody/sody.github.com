@@ -1,0 +1,381 @@
+ ----
+ Тестирование в Java. JUnit.
+ ----
+ sody
+ ----
+ 2011-05-16
+
+Тестирование в Java. JUnit.
+
+  Самый известный, а потому и самый используемый фреймворк для тестирования. Используется в двух вариантах JUnit 4 и JUnit 3.
+  Начнем с более старой версии, в старых проектах до сих пор используется, т.к. поддерживается Java 1.4.
+
+* JUnit 3
+
+  Для создания теста нужно унаследовать тест-класс от <<<TestCase>>>, переопределить методы <<<setUp>>> и <<<tearDown>>>
+  если надо, ну и самое главное - создать тестовые методы(должны начинаться с <<<test>>>). При запуске теста сначала создается
+  экземляр тест-класса(для каждого теста в классе отдельный экземпляр класса), затем выполняется метод <<<setUp>>>,
+  запускается сам тест, ну и в завершении выполняется метод <<<tearDown>>>. Если какой-либо из методов выбрасывает исключение,
+  тест считается провалившемся.
+
+  Примечание: тестовые методы должны быть <<<public void>>>, могут быть <<<static>>>.
+
+  Рассмотрим пример, есть утилита для работы со строками, есть методы для проверки пустой строки и представления
+  последовательности байт в виде 16-ричной строки:
+
++----+
+public abstract class StringUtils {
+  private static final int HI_BYTE_MASK = 0xf0;
+  private static final int LOW_BYTE_MASK = 0x0f;
+
+  private static final char[] HEX_SYMBOLS = {
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
+  };
+
+  public static boolean isEmpty(final CharSequence sequence) {
+    return sequence == null || sequence.length() <= 0;
+  }
+
+  public static String toHexString(final byte[] data) {
+    final StringBuffer builder = new StringBuffer(2 * data.length);
+    for (byte item : data) {
+      builder.append(HEX_SYMBOLS[(HI_BYTE_MASK & item) >>> 4]);
+      builder.append(HEX_SYMBOLS[(LOW_BYTE_MASK & item)]);
+    }
+    return builder.toString();
+  }
+}
++----+
+
+  Напишем для нее тесты используя JUnit 3. Удобнее всего на мой взгляд писать тесты рассматривая нейкий класс как черный ящик,
+  писать отдельный тест на каждый значимый метод в этом классе, для каждого набора входных параметров какой-то ожидаемый
+  результат. Например, тест для <<<isEmpty>>> метода:
+
++----+
+  public void testIsEmpty() {
+    boolean actual = StringUtils.isEmpty(null);
+    assertTrue(actual);
+
+    actual = StringUtils.isEmpty("");
+    assertTrue(actual);
+
+    actual = StringUtils.isEmpty(" ");
+    assertFalse(actual);
+
+    actual = StringUtils.isEmpty("some string");
+    assertFalse(actual);
+  }
++----+
+
+  Можно разделить данные и логику теста, перенеся создание данных в метод <<<setUp>>>:
+
++----+
+public class StringUtilsJUnit3Test extends TestCase {
+  private final Map toHexStringData = new HashMap();
+
+  protected void setUp() throws Exception {
+    toHexStringData.put("", new byte[0]);
+    toHexStringData.put("01020d112d7f", new byte[] { 1, 2, 13, 17, 45, 127 });
+    toHexStringData.put("00fff21180", new byte[] { 0, -1, -14, 17, -128 });
+    //...
+  }
+
+  protected void tearDown() throws Exception {
+    toHexStringData.clear();
+  }
+
+  public void testToHexString() {
+    for (Iterator iterator = toHexStringData.keySet().iterator(); iterator.hasNext();) {
+      final String expected = (String) iterator.next();
+      final byte[] testData = (byte[]) toHexStringData.get(expected);
+      final String actual = StringUtils.toHexString(testData);
+      assertEquals(expected, actual);
+    }
+  }
+
+  //...
+}
++----+
+
+** Расширения
+
+  Есть несколько расширений. Например, можно группировать тесты. Для этого нужно унаследоваться от класса <<<TestSuite>>>:
+
++----+
+public class StringUtilsJUnit3TestSuite extends TestSuite {
+  public StringUtilsJUnit3TestSuite() {
+    addTestSuite(StringUtilsJUnit3Test.class);
+    addTestSuite(OtherTest1.class);
+    addTestSuite(OtherTest2.class);
+  }
+}
++----+
+
+  Можно запустить один и тот же тест несколько раз. Для этого наследуемся от <<<RepeatedTest>>>:
+
++----+
+public class StringUtilsJUnit3RepeatedTest extends RepeatedTest {
+  public StringUtilsJUnit3RepeatedTest() {
+    super(new StringUtilsJUnit3Test(), 100);
+  }
+}
++----+
+
+  Наследуя тест-класс от <<<ExceptionTestCase>>>, можно проверить что-либо на выброс исключения:
+
++----+
+public class StringUtilsJUnit3ExceptionTest extends ExceptionTestCase {
+  public StringUtilsJUnit3ExceptionTest(final String name) {
+    super(name, NullPointerException.class);
+  }
+
+  public void testToHexString() {
+    StringUtils.toHexString(null);
+  }
+}
++----+
+
+  Как видно из примеров все довольно просто, ничего лишнего, минимум нужный для тестирования
+  (хотя недостает и некоторых нужных вещей).
+
+* JUnit 4
+
+  Здесь была добалена поддержка новых возможностей из Java 5, тесты теперь могут быть объявлены с помощью аннотаций.
+  При этом существует обратная совместимость с предыдущей версией фреймворка, все рассмотреные выше примеры будут работать и
+  здесь(за исключением <<<RepeatedTest>>>, его почему-то убрали).
+
+** Основные аннотации
+
+  Рассмотрим тот же пример, но уже используюя новые возможности:
+
++----+
+public class StringUtilsJUnit4Test extends Assert {
+  private final Map<String, byte[]> toHexStringData = new HashMap<String, byte[]>();
+
+  @Before
+  public static void setUpToHexStringData() {
+    toHexStringData.put("", new byte[0]);
+    toHexStringData.put("01020d112d7f", new byte[] { 1, 2, 13, 17, 45, 127 });
+    toHexStringData.put("00fff21180", new byte[] { 0, -1, -14, 17, -128 });
+    //...
+  }
+
+  @After
+  public static void tearDownToHexStringData() {
+    toHexStringData.clear();
+  }
+
+  @Test
+  public void testToHexString() {
+    for (Map.Entry<String, byte[]> entry : toHexStringData.entrySet()) {
+      final byte[] testData = entry.getValue();
+      final String expected = entry.getKey();
+      final String actual = StringUtils.toHexString(testData);
+      assertEquals(expected, actual);
+    }
+  }
+}
++----+
+
+  Итак, что мы здесь видим?
+
+  * Для упрощения работы я предпочитаю наследоваться от класса <<<Assert>>>, хотя это необязательно.
+
+  * Аннотация <<<@Before>>> обозначает методы, которые будут вызваны до исполнения теста, методы должны быть <<<public void>>>.
+  Здесь обычно размещаются предустановки для теста, в нашем случае это генерация тестовых данных
+  (метод <<<setUpToHexStringData>>>).
+
+  * Аннотация <<<@BeforeClass>>> обозначает методы, которые будут вызваны до создания экземпляра тест-класса,
+  методы должны быть <<<public static void>>>. Имеет смысл размещать предустановки для теста в случае,
+  когда класс содержит несколько тестов использующих различные предустановки, либо когда несколько тестов используют одни и те
+  же данные, чтобы не тратить время на их создание для каждого теста.
+
+  * Аннотация <<<@After>>> обозначает методы, которые будут вызваны после выполнения теста, методы должны быть <<<public void>>>.
+  Здесь размещаются операции освобождения ресурсов после теста, в нашем случае - очистка тестовых данных
+  (метод <<<tearDownToHexStringData>>>).
+
+  * Аннотация <<<@AfterClass>>> связана по смылслу с <<<@BeforeClass>>>, но выполняет методы после теста,
+  как и в случае с <<<@BeforeClass>>>, методы должны быть <<<public static void>>>.
+
+  * Аннотация <<<@Test>>> обозначает тестовые методы. Как и ранее, эти методы должны быть <<<public void>>>. Здесь размещаются
+  сами проверки. Кроме того, у данной аннотации есть два параметра, <<<expected>>> - задает ожидаемое исключение и
+  <<<timeout>>> - задает время после которого тест считается провалившемся.
+
+  []
+
++----+
+  @Test(expected = NullPointerException.class)
+  public void testToHexStringWrong() {
+    StringUtils.toHexString(null);
+  }
+
+  @Test(timeout = 1000)
+  public void infinity() {
+    while (true);
+  }
++----+
+
+  Если какой-либо тест по какой-либо серьезной причине нужно отключить(например, этот тест постоянно валится,
+  но его исправление отложено до светлого будущего) его можно зааннотировать <<<@Ignore>>>. Также, если поместить эту аннотацию
+  на класс, то все тесты в этом классе будут отключены.
+
++----+
+  @Ignore
+  @Test(timeout = 1000)
+  public void infinity() {
+    while (true);
+  }
++----+
+
+** Правила
+
+  Кроме всего вышеперечисленного есть довольно интересная вешь - правила.
+  Правила это некое подобие утилит для тестов, которые добавляют функционал до и после выполнения теста.
+
+  Например есть встроеные правила для задания таймаута для теста(<<<Timeout>>>), для задания ожидаемых
+  исключений(<<<ExpectedException>>>), для работы с временными файлами(<<<TemporaryFolder>>>) и д.р.
+  Для объявления правила необходимо создать <<<public>>> не <<<static>>> поле типа производного от <<<MethodRule>>> и
+  зааннотировать его с помощью <<<@Rule>>>.
+
++----+
+public class OtherJUnit4Test {
+
+  @Rule
+  public final TemporaryFolder folder = new TemporaryFolder();
+
+  @Rule
+  public final Timeout timeout = new Timeout(1000);
+
+  @Rule
+  public final ExpectedException thrown = ExpectedException.none();
+
+  @Ignore
+  @Test
+  public void anotherInfinity() {
+    while (true);
+  }
+
+  @Test
+  public void testFileWriting() throws IOException {
+    final File log = folder.newFile("debug.log");
+    final FileWriter logWriter = new FileWriter(log);
+    logWriter.append("Hello, ");
+    logWriter.append("World!!!");
+    logWriter.flush();
+    logWriter.close();
+  }
+
+  @Test
+  public void testExpectedException() throws IOException {
+    thrown.expect(NullPointerException.class);
+    StringUtils.toHexString(null);
+  }
+}
++----+
+
+** Запускалки
+
+  Но и на этом возможности фреймворка не заканчиваются. Запускалка тестов тоже может быть сконфигурирована с помощью
+  <<<@RunWith>>>. При этом класс указанный в аннотации должен наследоваться от <<<Runner>>>. Рассмотрим встроенные,
+  идущие в комплекте с самим фреймворком.
+
+  <<<JUnit4>>> - запускалка по умолчанию, как понятно из названия, предназначена для запуска JUnit 4 тестов.
+
+  <<<JUnit38ClassRunner>>> предназначен для запуска тестов, написанных с использованием JUnit 3.
+
+  <<<SuiteMethod>>> либо <<<AllTests>>> тоже предназначены для запуска JUnit 3 тестов. В отличие от предыдущей запускалки,
+  в эту передается класс со статическим методом <<<suite>>> возвращающим тест(последовательность всех тестов).
+
+  <<<Suite>>> - эквивалент предыдущего, только для JUnit 4 тестов. Для настройки запускаемых тестов используется аннотация
+  <<<@SuiteClasses>>>.
+
++----+
+@Suite.SuiteClasses( { OtherJUnit4Test.class, StringUtilsJUnit4Test.class })
+@RunWith(Suite.class)
+public class JUnit4TestSuite {
+}
++----+
+
+  <<<Enclosed>>> - то же, что и предыдущий, но вместо настройки с помощью аннотации используются все внутренние классы.
+
+  <<<Categories>>> - попытка организовать тесты в категории(группы). Для этого тестам задается категория с помощью
+  <<<@Category>>>, затем настраиваются запускаемые категории тестов в сюите. Это может выглядеть так:
+
++----+
+public class StringUtilsJUnit4CategoriesTest extends Assert {
+  //...
+
+  @Category(Unit.class)
+  @Test
+  public void testIsEmpty() {
+    //...
+  }
+
+  //...
+}
+
+@RunWith(Categories.class)
+@Categories.IncludeCategory(Unit.class)
+@Suite.SuiteClasses( { OtherJUnit4Test.class, StringUtilsJUnit4CategoriesTest.class })
+public class JUnit4TestSuite {
+}
++----+
+
+  <<<Parameterized>>> - довольно интересная запускалка, позволяет писать параметризированные тесты. Для этого в тест-классе
+  объявляется статический метод возвращающий список данных, которые затем будут использованы в качестве аргументов конструктора
+  класса.
+
++----+
+@RunWith(Parameterized.class)
+public class StringUtilsJUnit4ParameterizedTest extends Assert {
+  private final CharSequence testData;
+  private final boolean expected;
+
+  public StringUtilsJUnit4ParameterizedTest(final CharSequence testData, final boolean expected) {
+    this.testData = testData;
+    this.expected = expected;
+  }
+
+  @Test
+  public void testIsEmpty() {
+    final boolean actual = StringUtils.isEmpty(testData);
+    assertEquals(expected, actual);
+  }
+
+  @Parameterized.Parameters
+  public static List<Object[]> isEmptyData() {
+    return Arrays.asList(new Object[][] {
+      { null, true },
+      { "", true },
+      { " ", false },
+      { "some string", false },
+    });
+  }
+}
++----+
+
+  <<<Theories>>> - чем-то схожа с предыдущей, но параметризирует тестовый а не конструктор. Данные помечаются с помощью
+  <<<@DataPoints>>> и <<<@DataPoint>>>, тестовый метод - с помощью <<<@Theory>>>. Тест использующий этот функционал будет
+  выглядеть примерно так:
+
++----+
+@RunWith(Theories.class)
+public class StringUtilsJUnit4TheoryTest extends Assert {
+
+  @DataPoints
+  public static Object[][] isEmptyData = new Object[][] {
+      { "", true },
+      { " ", false },
+      { "some string", false },
+  };
+
+  @DataPoint
+  public static Object[] nullData = new Object[] { null, true };
+
+  @Theory
+  public void testEmpty(final Object... testData) {
+    final boolean actual = StringUtils.isEmpty((CharSequence) testData[0]);
+    assertEquals(testData[1], actual);
+  }
+}
++----+
