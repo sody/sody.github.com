@@ -27,7 +27,7 @@
   Для создания теста нужно унаследовать тест-класс от <<<TestCase>>>, переопределить методы <<<setUp>>> и <<<tearDown>>>
   если надо, ну и самое главное - создать тестовые методы(должны начинаться с <<<test>>>). При запуске теста сначала создается
   экземляр тест-класса(для каждого теста в классе отдельный экземпляр класса), затем выполняется метод <<<setUp>>>,
-  запускается сам тест, ну и в завершении выполняется метод <<<tearDown>>>. Если какой-либо из методов выбрасывает исключение,
+  запускается сам тест, ну и в завершение выполняется метод <<<tearDown>>>. Если какой-либо из методов выбрасывает исключение,
   тест считается провалившимся.
 
   Примечание: тестовые методы должны быть <<<public void>>>, могут быть <<<static>>>.
@@ -412,4 +412,18 @@ public class StringUtilsJUnit4TheoryTest extends Assert {
   но есть возможность расширения с помощью правил и запускалок. Но несмотря на все это я все же предпочитаю
   {{{http://testng.org/doc/index.html}TestNG}} с его мощным функционалом, о котором и расскажу в следующей статье.
 
+  Примеры можно найти на {{{https://github.com/sody/samples/tree/master/testing}гитхабе}}.
+
 * Литература
+
+  * {{{http://junit.org}JUnit}}
+
+  * {{{http://www.cavdar.net/2008/07/21/junit-4-in-60-seconds/}JUnit 4 in 60 Seconds}}
+
+  * {{{http://isagoksu.com/2009/development/agile-development/test-driven-development/using-junit-datapoints-and-theories/}Using JUnit DataPoints and Theories}}
+
+  * {{{http://isagoksu.com/2009/development/agile-development/test-driven-development/using-junit-parameterized-annotation/}Using JUnit Parameterized Annotation}}
+
+  * {{{http://blog.mycila.com/2009/11/writing-your-own-junit-extensions-using.html}Writing your own JUnit extensions using @Rule}}
+
+  * {{{http://junit.org/node/589}Scheduling Junit tests with RunnerScheduler for a concurrent execution}}

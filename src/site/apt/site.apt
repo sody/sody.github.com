@@ -7,27 +7,27 @@
 
 Site creating using maven
 
-  Уже довольно долгое время использую {{{http://maven.apache.org/}мавен}} как инструмент для сборки проектов. Инструмент
-  этот очень интересный и модный. Он особенно популярен среди java разработчиков хотя может быть полезен и в других
-  областях. Так вот, сейчас я хотел бы рассказать о том как можно с его помощью создать сайт. Не знаю для чего это может
-  пригодиться вам, я пользуюсь этим для создания документации к проектам. В этой статье я попытаюсь создать html страницу
-  содержащую текст из этой статьи и выглядещей как обычная статья на хабре.
+  For quite a long time I've been using {{{http://maven.apache.org/}maven}} as a tool for building projects.
+  This modern tool is very interesting and it is especially popular among java developers, but can be useful
+  in other areas too. So, now I want to describe about how it can be used for website creation. I don't know
+  how this can be useful for you, I use it to manage project documentation. In this article I will try to create
+  html page containing the text of this article that looks like an ordinary article from {{http://habrahabr.ru}}.
 
-[images/sample-site1.png] Что должно получиться
+[images/sample-site1.png] It will look like this
 
-  Сайт для проекта создается с помощью простой команды:
+  Project site are created with simple command:
 
 +----+
 mvn site
 +----+
 
-  По умолчанию в результате выполнения этой команды для пустого проекта создается стандартный набор html страниц:
-  index.html, dependencies.html, integration.html... Это отчеты созданные плагином
-  {{{http://maven.apache.org/plugins/maven-project-info-reports-plugin/}maven-project-info-reports-plugin}}. Их можно
-  отключить либо добавить настроив <reporting> секцию в pom.xml. Но не буду углубляться в эту тему, так как хочу
-  рассказать про другую особенность мавена - добавление своего контента и настройка внешнего вида создаваемого сайта.
+  By default the command execution result for empty is standard set of html pages:
+  index.html, dependencies.html, integration.html... This are reports created by
+  {{{http://maven.apache.org/plugins/maven-project-info-reports-plugin/}maven-project-info-reports-plugin}}.
+  It can be disabled or added by configuring <reporting> section in pom.xml. But I will not go through this
+  topic as I want to tell you about another maven feature - adding own content and site appearance configuration.
 
-Настройка проекта
+Project configuration
 
   Итак, для начала создадим проект. Для создания контента используется
   {{{http://maven.apache.org/plugins/maven-site-plugin/}maven-site-plugin}}, поэтому есть смысл добавить его в <build>
