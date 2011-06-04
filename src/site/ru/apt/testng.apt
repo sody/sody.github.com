@@ -25,7 +25,7 @@
   Итак, что же здесь есть? Как и в JUnit 4 тесты описываются с помощью аннотаций, также поддерживаются тесты написанные на
   JUnit 3. Есть возможность вместо аннотаций использовать доклет, это может быть полезно если использовать Java 1.4.
 
-  Для начала рассмотрим иерархию тестов. Прежде всего хочу сказать что здесь тесты принадлежат к какой-либо последовательности
+  Для начала рассмотрим иерархию тестов. Все тесты принадлежат к какой-либо последовательности
   тестов(сюите), включают в себя некоторое количество классов, каждый из которых может состоять из нескольких тестовых методов.
   При этом классы и тестовые методы могут принадлежать к определенной группе. Наглядно это выглядит так:
 
@@ -43,10 +43,10 @@
          +- method4/
 ----
 
-  Для запуска тестов используется XML либо YAML конфигурация(можно и без них, например в мавене): XML выглядит примерно так:
+  Для запуска тестов используется XML либо YAML конфигурация(можно и без них): XML конфигурация выглядит примерно так:
 
 +----+
-<suite name="SingleSuite" verbose="2" thread-count="4">
+<suite name="SingleSuite" thread-count="4">
 
   <parameter name="n" value="42" />
 
@@ -79,17 +79,314 @@ tests:
       - test.listeners.ResultEndMillisTest
 +----+
 
-  Теперь поподробнее о самих тестах. Рассмотрим пример:
+  Теперь поподробнее о самих тестах. Рассмотрим пример. Утилита для работы с локалями, умеет парсить из строки а также искать 
+  кандидаты(en_US -> en_US, en, root):
 
 +----+
+public abstract class LocaleUtils {
+
+  /**
+   * Root locale fix for java 1.5
+   */
+  public static final Locale ROOT_LOCALE = new Locale("");
+
+  private static final String LOCALE_SEPARATOR = "_";
+
+  public static Locale parseLocale(final String value) {
+    if (value != null) {
+      final StringTokenizer tokens = new StringTokenizer(value, LOCALE_SEPARATOR);
+      final String language = tokens.hasMoreTokens() ? tokens.nextToken() : "";
+      final String country = tokens.hasMoreTokens() ? tokens.nextToken() : "";
+      String variant = "";
+      String sep = "";
+      while (tokens.hasMoreTokens()) {
+        variant += sep + tokens.nextToken();
+        sep = LOCALE_SEPARATOR;
+      }
+      return new Locale(language, country, variant);
+    }
+    return null;
+  }
+
+  public static List<Locale> getCandidateLocales(final Locale locale) {
+    final List<Locale> locales = new ArrayList<Locale>();
+    if (locale != null) {
+      final String language = locale.getLanguage();
+      final String country = locale.getCountry();
+      final String variant = locale.getVariant();
+
+      if (variant.length() > 0) {
+        locales.add(locale);
+      }
+      if (country.length() > 0) {
+        locales.add((locales.size() == 0) ? locale : new Locale(language, country));
+      }
+      if (language.length() > 0) {
+        locales.add((locales.size() == 0) ? locale : new Locale(language));
+      }
+    }
+    locales.add(ROOT_LOCALE);
+    return locales;
+  }
+}
 +----+
 
-  Все объявления с помощью аннотаций(либо джавадоков):
+  Напишем к ней тест в стиле JUnit-a(не стоит рассматривать данный пример как руководство к написанию тестов на TestNG, такой подход 
+  стоит использовать только если надо быстро сконвертировать тесты из JUnit-а):
 
-  * <<<BeforeSuite>>> обозначает методы, которые будут вызваны до исполнения всех тестов, методы должны быть <<<public void>>>.
-  Здесь обычно размещаются предустановки для теста, в нашем случае это генерация тестовых данных
++----+
+public class LocaleUtilsOldStyleTest extends Assert {
+  private Map<String, Locale> parseLocaleData = new HashMap<String, Locale>();
 
+  @BeforeClass
+  private void setUp() {
+    parseLocaleData.put(null, null);
+    parseLocaleData.put("", LocaleUtils.ROOT_LOCALE);
+    parseLocaleData.put("en", Locale.ENGLISH);
+    parseLocaleData.put("en_US", Locale.US);
+    parseLocaleData.put("en_GB", Locale.UK);
+    parseLocaleData.put("ru", new Locale("ru"));
+    parseLocaleData.put("ru_RU_xxx", new Locale("ru", "RU", "xxx"));
+  }
 
+  @AfterTest
+  void tearDown() {
+    parseLocaleData.clear();
+  }
+
+  @Test
+  public void testParseLocale() {
+    for (Map.Entry<String, Locale> entry : parseLocaleData.entrySet()) {
+      final Locale actual = LocaleUtils.parseLocale(entry.getKey());
+      final Locale expected = entry.getValue();
+      assertEquals(actual, expected);
+    }
+  }
+}
++----+
+
+  Что здесь есть?
+  
+  * Как уже было сказано в предыдущей статье я предпочитаю наследовать тест класс от <<<Assert>>>, это конечно же можно заменить
+  статическим импортом, либо использованием класса напрямую(Assert.assertEquals(...)). Внимание: в отличие от такого же класса в JUnit
+  здесь во все методы актуальное значение передается первым, ожидаемое вторым(в JUnit наоборот).
+  
+  * Аннотации <<<BeforeSuite>>>, <<<AfterSuite>>> обозначают методы, которые исполняются единожды до/после исполнения всех тестов. Здесь удобно 
+  располагать какие-либо тяжелые настройки общие для всех тестов, например здесь можно создать пул соединений с базой данных.
+  
+  * Аннотации <<<BeforeTest>>>, <<<AfterTest>>> обозначают методы, которые исполняются единожды до/после исполнения теста(тот, который включает
+  в себя тестовые классы, не путать с тестовыми методами). Здесь можно хранить настройки какой-либо группы взаимосвязанных сервисов, либо одного сервиса
+  если он тестируется несколькими тест-классами.
+  
+  * Аннотации <<<BeforeClass>>>, <<<AfterClass>>> обозначают методы, которые исполняются единожды до/после исполнения всех тестов в классе, идентичны 
+  предыдущим, но применимы к тест-классам. Наиболее применим для тестирования какого-то определенного сервиса, который не меняет свое состояние 
+  в результе теста.
+  
+  * Аннотации <<<BeforeMethod>>>, <<<AfterMethod>>> обозначают методы, которые исполняются каждый раз до/после исполнения тестового метода. Здесь
+  удобно хранить настройки для определенного бина или сервиса если он не меняет свое состояние в результате теста.
+  
+  * Аннотации <<<BeforeGroups>>>, <<<AfterGroups>>> обозначает методы, которые исполняются до/после первого/последнего теста принадлежащего к заданым 
+  группам.
+  
+  []
+  
+  У всех этих аннотаций есть следующие параметры:
+  
+  * enabled - можно временно отключить установив значение в false
+
+  * groups - обозначает для каких групп будет исполнен
+  
+  * inheritGroups - если true(а по умолчанию именно так), метод будет наследовать группы от тест класса.
+  
+  * timeOut - время после которого метод "свалится" и потянет за собой скип всех завимых от него тестов.
+  
+  * description - название используемое в отчете
+
+  * dependsOnMethods - методы, от которых зависит, свалились указанные методы, скипнулся и сам метод
+
+  * dependsOnGroups - группы от которых зависит.
+  
+  * alwaysRun - если установить в true будет вызываться всегда независимо от того, к каким группам принадлежит, не применим к <<<BeforeGroups>>>, 
+  <<<AfterGroups>>>.
+  
+  []
+  
+  Для объявления тестовых методов/классов используется аннотация <<<Test>>>. Болле подробно о ней немного позже.
+
+  Как видно из примера тест практически ничем не отличается от такого же теста на JUnit. Если нет разницы то зачем использовать TestNG?  
+
+* Параметризированные тесты
+
+  Напишем тот же тест другим способом:
+  
++----+
+public class LocaleUtilsTest extends Assert {
+
+  @DataProvider
+  public Object[][] parseLocaleData() {
+    return new Object[][]{
+      {null, null},
+      {"", LocaleUtils.ROOT_LOCALE},
+      {"en", Locale.ENGLISH},
+      {"en_US", Locale.US},
+      {"en_GB", Locale.UK},
+      {"ru", new Locale("ru")},
+      {"ru_RU_some_variant", new Locale("ru", "RU", "some_variant")},
+    };
+  }
+
+  @Test(dataProvider = "parseLocaleData")
+  public void testParseLocale(String locale, Locale expected) {
+    final Locale actual = LocaleUtils.parseLocale(locale);
+    assertEquals(actual, expected);
+  }
+}
++----+
+
+  Проще? Конечно, данные хранятся отдельно от самого теста. Удобно? Конечно, можно добавлять тесты, добавляя всего лишь строчку
+  в метод <<<parseLocaleData>>>. 
+  
+  Итак, как это работает?
+  
+  * Объявляем тестовый метод со всеми нужными ему параметрами, например входные и ожидаемые данные. В нашем случае это строка, 
+  которую нужно распарсить в локаль и ожидаемая в результате локаль.
+  
+  * Объявляем дата провайдер, хранилище данных для теста. Обычно это метод возвращающий Object[][] либо List<Object[]>, содержащий 
+  список параметров для определенного теста, например {"en_US", Locale.US}. Этот метод должен быть зааннотирован с помощью <<<@DataProvider>>>,
+  в самом тесте он объявляется с помощью параметра <<<dataProvider>>> в аннотации <<<@Test>>>. Также можно указать имя(параметр name), если не указывать
+  в качестве имени будет использоваться название метода.
+  
+  []
+  
+  Еще один пример:
+  
++----+
+public class LocaleUtilsTest extends Assert {
+  // other tests
+
+  @DataProvider(name = "getCandidateLocalesData")
+  public Object[][] getCandidateLocalesData() {
+    return new Object[][]{
+      {null, Arrays.asList(LocaleUtils.ROOT_LOCALE)},
+      {LocaleUtils.ROOT_LOCALE, Arrays.asList(LocaleUtils.ROOT_LOCALE)},
+      {Locale.ENGLISH, Arrays.asList(Locale.ENGLISH, LocaleUtils.ROOT_LOCALE)},
+      {Locale.US, Arrays.asList(Locale.US, Locale.ENGLISH, LocaleUtils.ROOT_LOCALE)},
+      {new Locale("en", "US", "xxx"), Arrays.asList(
+        new Locale("en", "US", "xxx"), Locale.US, Locale.ENGLISH, LocaleUtils.ROOT_LOCALE)
+      },
+    };
+  }
+
+  @Test(dataProvider = "getCandidateLocalesData")
+  public void testGetCandidateLocales(Locale locale, List<Locale> expected) {
+    final List<Locale> actual = LocaleUtils.getCandidateLocales(locale);
+    assertEquals(actual, expected);
+  }
+}
++----+
+
+  Очень красиво, очень удобно, в одном классе сразу несколько параметризированных тестов.
+  
+* Дополнительные возможности
+  
+  Рассмотрим параметры аннотации <<<@Test>>>:
+  
+  * enabled - можно временно отключить тест установив значение в false
+
+  * groups - обозначает для каких групп будет исполнен
+  
+  * timeOut - время после которого тест "свалится" и потянет за собой скип всех завимых от него тестов.
+  
+  * description - название используемое в отчете
+
+  * dependsOnMethods - методы, от которых зависит, свалились указанные методы, скипнулся и сам метод
+
+  * dependsOnGroups - группы от которых зависит.
+  
+  * alwaysRun - если установить в true будет вызываться всегда независимо от того, к каким группам принадлежит.
+  
+  []
+
+  Как видно те же аннотации, что были описаны ранее. Есть и несколько специфических, например для проверки выброса
+  исключений(очень удобно использовать для тестов на неправильных данных):
+
++----+
+public class ExceptionTest {
+
+  @Test(expectedExceptions = IllegalArgumentException.class, expectedExceptionsMessageRegExp = "^Wrong (.*)$")
+  public void testException() {
+    throw new IllegalArgumentException("Wrong execution");
+  }
+}
++----+
+  
+  * expectedExceptions задает варианты ожидаемых исключений, если они не выбрасываются, тест считается провалившемся.
+  
+  * expectedExceptionsMessageRegExp то же что и предыдущий параметр, но задает regexp для сообщения об ошибке.
+
+  []
+  
+  Также есть поддержка исполнения тестов из нескольких потоков:
+  
++----+
+public class ConcurrencyTest extends Assert {
+  private Map<String, String> data;
+
+  @BeforeClass
+  void setUp() throws Exception {
+    data = new HashMap<String, String>();
+  }
+
+  @AfterClass
+  void tearDown() throws Exception {
+    data = null;
+  }
+
+  @Test(threadPoolSize = 30, invocationCount = 100, invocationTimeOut = 10000)
+  public void testMapOperations() throws Exception {
+    data.put("1", "111");
+    data.put("2", "111");
+    data.put("3", "111");
+    data.put("4", "111");
+    data.put("5", "111");
+    data.put("6", "111");
+    data.put("7", "111");
+    for (Map.Entry<String, String> entry : data.entrySet()) {
+      System.out.println(entry);
+    }
+    data.clear();
+  }
+
+  @Test(singleThreaded = true, invocationCount = 100, invocationTimeOut = 10000)
+  public void testMapOperationsSafe() throws Exception {
+    data.put("1", "111");
+    data.put("2", "111");
+    data.put("3", "111");
+    data.put("4", "111");
+    data.put("5", "111");
+    data.put("6", "111");
+    data.put("7", "111");
+    for (Map.Entry<String, String> entry : data.entrySet()) {
+      System.out.println(entry);
+    }
+    data.clear();
+  }
+}
++----+
+
+  * threadPoolSize определяет максимальное количество потоков используемое для тестов.
+  
+  * singleThreaded если установлен в true все тесты будут запущены в одном потоке.
+
+  * invocationCount определяет количество запусков теста.
+  
+  * invocationTimeOut определяет общее время всех запусков теста, после которого тест считается провалившемся.
+  
+  []
+  
+  Первый тест будет время от времени проваливаться с <<<ConcurrentModificationException>>>, так как будет запускаться из 
+  разных потоков, второй - нет, так как все тесты будут запущены последовательно из одного потока.
+  
 * Литература
 
   * {{{http://tctutorial.ru/datadriven/}Data Driven Testing (Тесты, управляемые данными)}}
