@@ -20,10 +20,10 @@
   В этой статье я заострю внимание на тестовом фреймворке TestNG. Многие уже слышали это название, и перейдя на него,
   вряд ли желают вернуться к JUnit-у(хотя это только предположение).
 
-* Основные возможности
-
   Итак, что же здесь есть? Как и в JUnit 4 тесты описываются с помощью аннотаций, также поддерживаются тесты написанные на
   JUnit 3. Есть возможность вместо аннотаций использовать доклет, это может быть полезно если использовать Java 1.4.
+
+* Основные возможности
 
   Для начала рассмотрим иерархию тестов. Все тесты принадлежат к какой-либо последовательности
   тестов(сюите), включают в себя некоторое количество классов, каждый из которых может состоять из нескольких тестовых методов.
@@ -39,47 +39,11 @@
    |  +- class1
    |     +- method3(optional group)/
    +- test1/
-      +- class3(integration group)/
+      +- class3(optional group, integration group)/
          +- method4/
 ----
 
-  Для запуска тестов используется XML либо YAML конфигурация(можно и без них): XML конфигурация выглядит примерно так:
-
-+----+
-<suite name="SingleSuite" thread-count="4">
-
-  <parameter name="n" value="42" />
-
-  <test name="Regression2">
-    <groups>
-      <run>
-        <exclude name="broken" />
-      </run>
-    </groups>
-
-    <classes>
-      <class name="test.listeners.ResultEndMillisTest" />
-    </classes>
-  </test>
-</suite>
-+----+
-
-  Аналогичная YAML конфигурация:
-
-+----+
-name: SingleSuite
-threadCount: 4
-parameters: { n: 42 }
-
-tests:
-  - name: Regression2
-    parameters: { count: 10 }
-    excludedGroups: [ broken ]
-    classes:
-      - test.listeners.ResultEndMillisTest
-+----+
-
-  Теперь поподробнее о самих тестах. Рассмотрим пример. Утилита для работы с локалями, умеет парсить из строки а также искать 
+  Теперь поподробнее о самих тестах. Рассмотрим пример. Утилита для работы с локалями, умеет парсить из строки а также искать
   кандидаты(en_US -> en_US, en, root):
 
 +----+
@@ -131,12 +95,11 @@ public abstract class LocaleUtils {
 }
 +----+
 
-  Напишем к ней тест в стиле JUnit-a(не стоит рассматривать данный пример как руководство к написанию тестов на TestNG, такой подход 
-  стоит использовать только если надо быстро сконвертировать тесты из JUnit-а):
+  Напишем к ней тест в стиле JUnit-a(не стоит рассматривать данный пример как руководство к написанию тестов на TestNG):
 
 +----+
 public class LocaleUtilsOldStyleTest extends Assert {
-  private Map<String, Locale> parseLocaleData = new HashMap<String, Locale>();
+  private final Map<String, Locale> parseLocaleData = new HashMap<String, Locale>();
 
   @BeforeClass
   private void setUp() {
@@ -167,7 +130,7 @@ public class LocaleUtilsOldStyleTest extends Assert {
 
   Что здесь есть?
   
-  * Как уже было сказано в предыдущей статье я предпочитаю наследовать тест класс от <<<Assert>>>, это конечно же можно заменить
+  * Как уже было сказано в предыдущей статье я предпочитаю наследовать тест-класс от <<<Assert>>>, это конечно же можно заменить
   статическим импортом, либо использованием класса напрямую(Assert.assertEquals(...)). Внимание: в отличие от такого же класса в JUnit
   здесь во все методы актуальное значение передается первым, ожидаемое вторым(в JUnit наоборот).
   
@@ -188,6 +151,8 @@ public class LocaleUtilsOldStyleTest extends Assert {
   * Аннотации <<<BeforeGroups>>>, <<<AfterGroups>>> обозначает методы, которые исполняются до/после первого/последнего теста принадлежащего к заданым 
   группам.
   
+  * Аннотация <<<Test>>> обозначает сами тесты. Здесь размещаются проверки.
+
   []
   
   У всех этих аннотаций есть следующие параметры:
@@ -196,28 +161,26 @@ public class LocaleUtilsOldStyleTest extends Assert {
 
   * groups - обозначает для каких групп будет исполнен
   
-  * inheritGroups - если true(а по умолчанию именно так), метод будет наследовать группы от тест класса.
+  * inheritGroups - если true(а по умолчанию именно так), метод будет наследовать группы от тест класса
   
-  * timeOut - время после которого метод "свалится" и потянет за собой скип всех завимых от него тестов.
+  * timeOut - время после которого метод "свалится" и потянет за собой все завимые от него тесты
   
   * description - название используемое в отчете
 
-  * dependsOnMethods - методы, от которых зависит, свалились указанные методы, скипнулся и сам метод
+  * dependsOnMethods - методы, от которых зависит, сначала будут выполнены они, а затем данный метод
 
-  * dependsOnGroups - группы от которых зависит.
+  * dependsOnGroups - группы от которых зависит
   
   * alwaysRun - если установить в true будет вызываться всегда независимо от того, к каким группам принадлежит, не применим к <<<BeforeGroups>>>, 
-  <<<AfterGroups>>>.
+  <<<AfterGroups>>>
   
   []
   
-  Для объявления тестовых методов/классов используется аннотация <<<Test>>>. Болле подробно о ней немного позже.
-
-  Как видно из примера тест практически ничем не отличается от такого же теста на JUnit. Если нет разницы то зачем использовать TestNG?  
+  Как видно из примера тест практически ничем не отличается от такого же теста на JUnit. Если нет разницы то зачем использовать TestNG?
 
 * Параметризированные тесты
 
-  Напишем тот же тест другим способом:
+  Напишем этот же тест другим способом:
   
 +----+
 public class LocaleUtilsTest extends Assert {
@@ -251,21 +214,20 @@ public class LocaleUtilsTest extends Assert {
   * Объявляем тестовый метод со всеми нужными ему параметрами, например входные и ожидаемые данные. В нашем случае это строка, 
   которую нужно распарсить в локаль и ожидаемая в результате локаль.
   
-  * Объявляем дата провайдер, хранилище данных для теста. Обычно это метод возвращающий Object[][] либо List<Object[]>, содержащий 
-  список параметров для определенного теста, например {"en_US", Locale.US}. Этот метод должен быть зааннотирован с помощью <<<@DataProvider>>>,
-  в самом тесте он объявляется с помощью параметра <<<dataProvider>>> в аннотации <<<@Test>>>. Также можно указать имя(параметр name), если не указывать
-  в качестве имени будет использоваться название метода.
+  * Объявляем дата провайдер, хранилище данных для теста. Обычно это метод возвращающий Object[][] либо Iterator\<Object[]\>,
+  содержащий список параметров для определенного теста, например \{"en_US", Locale.US\}. Этот метод должен быть зааннотирован с
+  помощью <<<@DataProvider>>>, в самом тесте он объявляется с помощью параметра <<<dataProvider>>> в аннотации <<<@Test>>>.
+  Также можно указать имя(параметр <<<name>>>), если не указывать в качестве имени будет использоваться название метода.
   
   []
   
-  Еще один пример:
+  Еще один пример, теперь разнесем данные и логику теста в разные классы:
   
 +----+
-public class LocaleUtilsTest extends Assert {
-  // other tests
+public class LocaleUtilsTestData {
 
   @DataProvider(name = "getCandidateLocalesData")
-  public Object[][] getCandidateLocalesData() {
+  public static Object[][] getCandidateLocalesData() {
     return new Object[][]{
       {null, Arrays.asList(LocaleUtils.ROOT_LOCALE)},
       {LocaleUtils.ROOT_LOCALE, Arrays.asList(LocaleUtils.ROOT_LOCALE)},
@@ -276,8 +238,12 @@ public class LocaleUtilsTest extends Assert {
       },
     };
   }
+}
 
-  @Test(dataProvider = "getCandidateLocalesData")
+public class LocaleUtilsTest extends Assert {
+  // other tests
+
+  @Test(dataProvider = "getCandidateLocalesData", dataProviderClass = LocaleUtilsTestData.class)
   public void testGetCandidateLocales(Locale locale, List<Locale> expected) {
     final List<Locale> actual = LocaleUtils.getCandidateLocales(locale);
     assertEquals(actual, expected);
@@ -285,30 +251,41 @@ public class LocaleUtilsTest extends Assert {
 }
 +----+
 
-  Очень красиво, очень удобно, в одном классе сразу несколько параметризированных тестов.
+  В этом случае задаются параметры <<<dataProviderClass>>> и <<<dataProvider>>>. Метод, возвращающий тестовые данные должен
+  быть <<<static>>>.
+
+  Кроме описанного выше есть еще один способ параметризировать тесты. Нужный метод аннотируется с помощью <<<@Parameters>>>, где
+  указываются имена всех необходимых параметров. Некоторые из параметров можно зааннотировать с помощью <<<@Optional>>> с указанием
+  значения по умолчанию(если не указать, то будут использоваться значения по умолчанию для примитивов,
+  либо <<<null>>> для всех остальных типов). Значения параметров хранятся в конфигурации TestNG(которая будет рассмотрена
+  позже). Пример:
   
++----+
+public class ParameterizedTest extends Assert {
+  private DataSource dataSource;
+
+  @Parameters({"driver", "url", "username", "password"})
+  @BeforeClass
+  public void setUpDataSource(String driver, String url, @Optional("sa") String username, @Optional String password) {
+    // create datasource
+    dataSource = ...
+  }
+
+  @Test
+  public void testOptionalData() throws SQLException {
+    dataSource.getConnection();
+    // do some staff
+  }
+}
++----+
+
+  В данном случае метод <<<setUpDataSource>>> будет принимать в качестве параметров настройки соединения с БД,
+  причем параметры <<<username>>> и <<<password>>> опциональны, с заданными значениями по умолчанию. Очень удобно использовать в
+
 * Дополнительные возможности
   
-  Рассмотрим параметры аннотации <<<@Test>>>:
-  
-  * enabled - можно временно отключить тест установив значение в false
-
-  * groups - обозначает для каких групп будет исполнен
-  
-  * timeOut - время после которого тест "свалится" и потянет за собой скип всех завимых от него тестов.
-  
-  * description - название используемое в отчете
-
-  * dependsOnMethods - методы, от которых зависит, свалились указанные методы, скипнулся и сам метод
-
-  * dependsOnGroups - группы от которых зависит.
-  
-  * alwaysRun - если установить в true будет вызываться всегда независимо от того, к каким группам принадлежит.
-  
-  []
-
-  Как видно те же аннотации, что были описаны ранее. Есть и несколько специфических, например для проверки выброса
-  исключений(очень удобно использовать для тестов на неправильных данных):
+  Кроме всего описанного есть и другие возможности, например для проверки выброса исключений(очень удобно использовать для
+  тестов на неправильных данных):
 
 +----+
 public class ExceptionTest {
@@ -326,7 +303,7 @@ public class ExceptionTest {
 
   []
   
-  Также есть поддержка исполнения тестов из нескольких потоков:
+  Можно сделать так, чтобы тесты исполнялись одновременно из нескольких потоков:
   
 +----+
 public class ConcurrencyTest extends Assert {
@@ -387,6 +364,99 @@ public class ConcurrencyTest extends Assert {
   Первый тест будет время от времени проваливаться с <<<ConcurrentModificationException>>>, так как будет запускаться из 
   разных потоков, второй - нет, так как все тесты будут запущены последовательно из одного потока.
   
++----+
+public class AdditionalTest extends Assert {
+	private Random generator;
+
+	@BeforeClass
+	public void setUpGenerator() {
+		generator = new Random();
+	}
+
+	@Test(successPercentage = 50, invocationCount = 100)
+	public void testAdditionalFunctionality() {
+		if (generator.nextBoolean()) {
+			fail();
+		}
+	}
+}
++----+
+
+  * successPercentage определяет процент успешно прошедших тестов, при котором тест в целом не будет считаться провалившимся.
+
+  []
+
+  Тест, рассмотренный в примере, иногда будет проходить, иногда нет, как повезет.
+
+  Еще один пример:
+
++----+
+public class PrioritiesTest extends Assert {
+  private boolean firstTestExecuted;
+
+  @BeforeClass
+  public void setUp() throws Exception {
+    firstTestExecuted = false;
+  }
+
+  @Test(priority = 0)
+  public void first() {
+    assertFalse(firstTestExecuted);
+    firstTestExecuted = true;
+  }
+
+  @Test(priority = 1)
+  public void second() {
+    assertTrue(firstTestExecuted);
+  }
+}
++----+
+
+  * priority определяет приоритет теста внутри класса, чем меньше, тем раньше будет выполнен.
+
+  []
+
+  Данный пример пройдет успешно, так как сначала выполнится метод <<<first>>>, затем <<<second>>>. Если поменять приоритет у
+  <<<first>>> на 2, тест провалится.
+
+* Конфигурация
+
+  Для запуска тестов используется XML либо YAML конфигурация(можно и без них): XML конфигурация выглядит примерно так:
+
++----+
+<suite name="SingleSuite" thread-count="4">
+
+  <parameter name="n" value="42" />
+
+  <test name="Regression2">
+    <groups>
+      <run>
+        <exclude name="broken" />
+      </run>
+    </groups>
+
+    <classes>
+      <class name="test.listeners.ResultEndMillisTest" />
+    </classes>
+  </test>
+</suite>
++----+
+
+  Аналогичная YAML конфигурация:
+
++----+
+name: SingleSuite
+threadCount: 4
+parameters: { n: 42 }
+
+tests:
+  - name: Regression2
+    parameters: { count: 10 }
+    excludedGroups: [ broken ]
+    classes:
+      - test.listeners.ResultEndMillisTest
++----+
+
 * Литература
 
   * {{{http://tctutorial.ru/datadriven/}Data Driven Testing (Тесты, управляемые данными)}}
