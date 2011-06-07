@@ -280,31 +280,62 @@ public class ParameterizedTest extends Assert {
 +----+
 
   В данном случае метод <<<setUpDataSource>>> будет принимать в качестве параметров настройки соединения с БД,
-  причем параметры <<<username>>> и <<<password>>> опциональны, с заданными значениями по умолчанию. Очень удобно использовать в
+  причем параметры <<<username>>> и <<<password>>> опциональны, с заданными значениями по умолчанию. Очень удобно использовать
+  с данными, общими для всех тестов(ну или почти всех), например, как в примере настройки соединения с БД.
 
-* Дополнительные возможности
-  
-  Кроме всего описанного есть и другие возможности, например для проверки выброса исключений(очень удобно использовать для
-  тестов на неправильных данных):
+  Ну и в завершение следует сказать пару слов о фабриках, которые позволяют создавать тесты динамически. Также,
+  как и сами тесты, могут быть параметризированы с помощью <<<@DataProvider>>> либо <<<@Parameters>>>:
 
 +----+
-public class ExceptionTest {
+public class FactoryTest {
 
-  @Test(expectedExceptions = IllegalArgumentException.class, expectedExceptionsMessageRegExp = "^Wrong (.*)$")
-  public void testException() {
-    throw new IllegalArgumentException("Wrong execution");
+  @DataProvider
+  public Object[][] tablesData() {
+    return new Object[][] {
+      {"FIRST_TABLE"},
+      {"SECOND_TABLE"},
+      {"THIRD_TABLE"},
+    };
+  }
+
+  @Factory(dataProvider = "tablesData")
+  public Object[] createTest(String table) {
+    return new Object[] { new GenericTableTest(table) };
+  }
+}
+
+public class GenericTableTest extends Assert {
+  private final String table;
+
+  public GenericTableTest(final String table) {
+    this.table = table;
+  }
+
+  @Test
+  public void testTable() {
+    System.out.println(table);
+    // do some testing staff here
   }
 }
 +----+
-  
-  * expectedExceptions задает варианты ожидаемых исключений, если они не выбрасываются, тест считается провалившемся.
-  
-  * expectedExceptionsMessageRegExp то же что и предыдущий параметр, но задает regexp для сообщения об ошибке.
 
-  []
-  
+  Вариант с <<<@Parameters>>>:
+
++----+
+public class FactoryTest {
+
+  @Parameters("table")
+  @Factory
+  public Object[] createParameterizedTest(@Optional("SOME_TABLE") String table) {
+    return new Object[] { new GenericTableTest(table) };
+  }
+}
++----+
+
+* Многопоточность
+
   Можно сделать так, чтобы тесты исполнялись одновременно из нескольких потоков:
-  
+
 +----+
 public class ConcurrencyTest extends Assert {
   private Map<String, String> data;
@@ -352,17 +383,110 @@ public class ConcurrencyTest extends Assert {
 +----+
 
   * threadPoolSize определяет максимальное количество потоков используемое для тестов.
-  
+
   * singleThreaded если установлен в true все тесты будут запущены в одном потоке.
 
   * invocationCount определяет количество запусков теста.
-  
+
   * invocationTimeOut определяет общее время всех запусков теста, после которого тест считается провалившемся.
-  
+
   []
-  
-  Первый тест будет время от времени проваливаться с <<<ConcurrentModificationException>>>, так как будет запускаться из 
+
+  Первый тест будет время от времени проваливаться с <<<ConcurrentModificationException>>>, так как будет запускаться из
   разных потоков, второй - нет, так как все тесты будут запущены последовательно из одного потока.
+
+  Еще можно установить параметр <<<parallel>>> у дата провайдера в <<<true>>>, тогда тесты для каждого набора данных будут
+  запущены паралельно, в отдельном потоке:
+
++----+
+public class ConcurrencyTest extends Assert {
+  // some staff here
+
+  @DataProvider(parallel = true)
+  public Object[][] concurrencyData() {
+    return new Object[][] {
+      {"1", "2"},
+      {"3", "4"},
+      {"5", "6"},
+      {"7", "8"},
+      {"9", "10"},
+      {"11", "12"},
+      {"13", "14"},
+      {"15", "16"},
+      {"17", "18"},
+      {"19", "20"},
+    };
+  }
+
+  @Test(dataProvider = "concurrencyData")
+  public void testParallelData(String first, String second) {
+    final Thread thread = Thread.currentThread();
+    System.out.printf("#%d %s: %s : %s", thread.getId(), thread.getName(), first, second);
+    System.out.println();
+  }
+}
++----+
+
+  Данный тест будет выводить нечто вроде:
+
+----
+#16 pool-1-thread-3: 5 : 6
+#19 pool-1-thread-6: 11 : 12
+#14 pool-1-thread-1: 1 : 2
+#22 pool-1-thread-9: 17 : 18
+#20 pool-1-thread-7: 13 : 14
+#18 pool-1-thread-5: 9 : 10
+#15 pool-1-thread-2: 3 : 4
+#17 pool-1-thread-4: 7 : 8
+#21 pool-1-thread-8: 15 : 16
+#23 pool-1-thread-10: 19 : 20
+----
+
+  Без этого параметра будет что-то вроде:
+
+----
+#1 main: 1 : 2
+#1 main: 3 : 4
+#1 main: 5 : 6
+#1 main: 7 : 8
+#1 main: 9 : 10
+#1 main: 11 : 12
+#1 main: 13 : 14
+#1 main: 15 : 16
+#1 main: 17 : 18
+#1 main: 19 : 20
+----
+
+* Дополнительные возможности
+  
+  Кроме всего описанного есть и другие возможности, например для проверки выброса исключений(очень удобно использовать для
+  тестов на неправильных данных):
+
++----+
+public class ExceptionTest {
+
+  @DataProvider
+  public Object[][] wrongData() {
+    return new Object[][] {
+      {"Hello, World!!!"},
+      {"0x245"},
+      {"1798237199878129387197238"},
+    };
+  }
+
+  @Test(dataProvider = "wrongData", expectedExceptions = NumberFormatException.class,
+      expectedExceptionsMessageRegExp = "^For input string: \"(.*)\"$")
+  public void testParse(String data) {
+    Integer.parseInt(data);
+  }
+}
++----+
+  
+  * expectedExceptions задает варианты ожидаемых исключений, если они не выбрасываются, тест считается провалившемся.
+  
+  * expectedExceptionsMessageRegExp то же что и предыдущий параметр, но задает regexp для сообщения об ошибке.
+
+  []
   
 +----+
 public class AdditionalTest extends Assert {
