@@ -154,7 +154,7 @@ public class LocaleUtilsOldStyleTest extends Assert {
   * Аннотация <<<Test>>> обозначает сами тесты. Здесь размещаются проверки.
 
   []
-  
+
   У всех этих аннотаций есть следующие параметры:
   
   * enabled - можно временно отключить, установив значение в false
@@ -176,6 +176,27 @@ public class LocaleUtilsOldStyleTest extends Assert {
   
   []
   
+  Запускается это все в таком порядке:
+
++----+
++- before suite/
+   +- before group/
+      +- before test/
+         +- instantiate class/
+            +- before class/
+               +- before method/
+                  +- test/
+               +- after method/
+               ...
+            +- after class/
+         ...
+      +- after test/
+      ...
+   +- after group/
+   ...
++- after suite/
++----+
+
   Как видно из примера тест практически ничем не отличается от такого же теста на JUnit. Если нет разницы, то зачем использовать TestNG?
 
 * Параметризированные тесты
@@ -334,7 +355,8 @@ public class FactoryTest {
 
 * Многопоточность
 
-  Можно сделать так, чтобы тесты исполнялись одновременно из нескольких потоков:
+  Нужно проверить, как поведет себя приложение во многопоточном окружении? Можно сделать так,
+  чтобы тесты исполнялись одновременно из нескольких потоков:
 
 +----+
 public class ConcurrencyTest extends Assert {
@@ -488,30 +510,6 @@ public class ExceptionTest {
 
   []
   
-+----+
-public class AdditionalTest extends Assert {
-	private Random generator;
-
-	@BeforeClass
-	public void setUpGenerator() {
-		generator = new Random();
-	}
-
-	@Test(successPercentage = 50, invocationCount = 100)
-	public void testAdditionalFunctionality() {
-		if (generator.nextBoolean()) {
-			fail();
-		}
-	}
-}
-+----+
-
-  * successPercentage определяет процент успешно прошедших тестов, при котором тест в целом не будет считаться провалившимся.
-
-  []
-
-  Тест, рассмотренный в примере, иногда будет проходить, иногда нет, как повезет.
-
   Еще один пример:
 
 +----+
@@ -543,25 +541,115 @@ public class PrioritiesTest extends Assert {
   Данный пример пройдет успешно, так как сначала выполнится метод <<<first>>>, затем <<<second>>>. Если поменять приоритет у
   <<<first>>> на 2, тест провалится.
 
-* Конфигурация
-
-  Для запуска тестов используется XML либо YAML конфигурация(можно и без них): XML конфигурация выглядит примерно так:
+  Похожее поведение будет наблюдаться также если указать зависимости у теста, например, добавим в наш тест:
 
 +----+
-<suite name="SingleSuite" thread-count="4">
+public class PrioritiesTest extends Assert {
+  // some staff
 
-  <parameter name="n" value="42" />
+  @Test(dependsOnMethods = {"first"})
+  public void third() {
+    assertTrue(firstTestExecuted);
+  }
 
-  <test name="Regression2">
+  // some staff
+}
++----+
+
+  Обычно это удобно, когда один тест зависит от другого, например, Утилита1 использует Утилиту0,
+  если Утилита0 работает неправильно, то нет смысла тестировать Утилиту1. С другой стороны зависимости также удобно
+  использовать в <<<@Before>>>, <<<@After>>> методах, причем иногда бывает необходимо сделать так,
+  чтобы даже если метод <<<A>>> свалился, а метод <<<B>>> зависит от него, метод <<<B>>> все равно вызывался. В этом случае
+  устанавливаем параметр <<<alwaysRun>>> в <<<true>>>.
+
+* Внедрение зависимостей
+
+  Хочу порадовать любителей фреймворка от "корпорации добра" Guice. В TestNG есть встроенная поддержка последнего.
+  Выглядит это так:
+
++----+
+public class GuiceModule extends AbstractModule {
+
+  @Override
+  protected void configure() {
+    bind(String.class).annotatedWith(Names.named("guice-string-0")).toInstance("Hello, ");
+  }
+
+  @Named("guice-string-1")
+  @Inject
+  @Singleton
+  @Provides
+  public String provideGuiceString() {
+    return "World!!!";
+  }
+}
+
+@Guice(modules = {GuiceModule.class})
+public class GuiceTest extends Assert {
+
+  @Inject
+  @Named("guice-string-0")
+  private String word0;
+
+  @Inject
+  @Named("guice-string-1")
+  private String word1;
+
+  @Test
+  public void testService() {
+    final String actual = word0 + word1;
+    assertEquals(actual, "Hello, World!!!");
+  }
+}
++----+
+
+  Все, что надо - зааннотировать нужный класс с помощью <<<@Guice>>> и указать в параметре <<<modules>>> все необходимые
+  guice-модули. Далее в тест классе можно уже использовать внедрение зависимостей, используя <<<@Inject>>>.
+
+  Добавлю еще, что любителям других подобных фреймворков не стоит расстраиваться, так как у них обычно есть своя поддержка
+  TestNG, например, у Spring-а.
+
+* Конфигурация
+
+  Теперь перейдем к конфигурации тестов. Простейший способ запустить тесты выглядит примерно так:
+
++----+
+  final TestNG testNG = new TestNG(true);
+  testNG.setTestClasses(new Class[] {SuperMegaTest.class});
+  testNG.setExcludedGroups("optional");
+  testNG.run();
++----+
+
+  Но чаще всего для запуска тестов используется XML либо YAML конфигурация. XML конфигурация выглядит примерно так:
+
++----+
+<!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
+<suite name="Test suite" parallel="classes" thread-count="10">
+  <test name="Default tests" verbose="1" annotations="JDK" thread-count="10" parallel="classes">
+    <parameter name="driver" value="com.mysql.jdbc.Driver"/>
+    <parameter name="url" value="jdbc:mysql://localhost:3306/db"/>
+
     <groups>
       <run>
-        <exclude name="broken" />
+        <exclude name="integration"/>
       </run>
     </groups>
 
-    <classes>
-      <class name="test.listeners.ResultEndMillisTest" />
-    </classes>
+    <packages>
+      <package name="com.example.*"/>
+    </packages>
+  </test>
+
+  <test name="Integration tests" annotations="JDK">
+    <groups>
+      <run>
+        <include name="integration"/>
+      </run>
+    </groups>
+
+    <packages>
+      <package name="com.example.*"/>
+    </packages>
   </test>
 </suite>
 +----+
@@ -569,16 +657,35 @@ public class PrioritiesTest extends Assert {
   Аналогичная YAML конфигурация:
 
 +----+
-name: SingleSuite
-threadCount: 4
-parameters: { n: 42 }
-
+name: YAML Test suite
+parallel: classes
+threadCount: 10
 tests:
-  - name: Regression2
-    parameters: { count: 10 }
-    excludedGroups: [ broken ]
-    classes:
-      - test.listeners.ResultEndMillisTest
+  - name: Default tests
+    parameters:
+      driver: com.mysql.jdbc.Driver
+      url: jdbc:mysql://localhost:3306/db
+    excludedGroups: [ integration ]
+    packages:
+      - com.example.*
+  - name: Integration tests
+    parameters:
+      driver: com.mysql.jdbc.Driver
+      url: jdbc:mysql://localhost:3306/db
+    includedGroups: [ integration ]
+    packages:
+      - com.example.*
++----+
+
+  Запуск тестов:
+
++----+
+  final TestNG testNG = new TestNG(true);
+  //final Parser parser = new Parser("testing/testing-testng/src/test/resources/testng.xml");
+  final Parser parser = new Parser("testing/testing-testng/src/test/resources/testng.yaml");
+  final List<XmlSuite> suites = parser.parseToList();
+  testNG.setXmlSuites(suites);
+  testNG.run();
 +----+
 
 * Литература
@@ -586,3 +693,5 @@ tests:
   * {{{http://tctutorial.ru/datadriven/}Data Driven Testing (Тесты, управляемые данными)}}
 
   * {{{http://testng.org/doc/index.html}TestNG}}
+
+  * {{{http://www.asjava.com/testng/testng-basic-concepts-and-annotations/}TestNG Basic Concepts and Annotations}}
