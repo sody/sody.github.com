@@ -1,0 +1,781 @@
+ ----
+ Тестирование в Java. Spock Framework.
+ ----
+ sody
+ ----
+ 2012-02-03
+
+Тестирование в Java. Spock Framework.
+
+  В предыдущих статьях на примерах {{{http://habrahabr.ru/blogs/java/120101/}JUnit}} и
+  {{{http://habrahabr.ru/blogs/java/121234/}TestNG}} я упоминал о
+  {{{http://ru.wikipedia.org/wiki/Разработка_через_тестирование}test-driven development(TDD)}} и
+  {{{http://en.wikipedia.org/wiki/Data-driven_testing}data-driven testing(DDT)}}.
+  Но есть еще один активно набирающий популярность подход,
+  {{{http://en.wikipedia.org/wiki/Behavior_Driven_Development}behaviour-driven development(BDD)}}.
+  Это такое развитие TDD техники, при котором на тест смотрят не как на тестирование каких-то компонентов системы,
+  а как на требования к функционалу. Если TDD оперирует такими понятиями, как тест или метод, то для BDD это
+  спецификация и требования.
+  Про эту технику уже говорили на хабре ранее:
+  {{{http://habrahabr.ru/blogs/tdd/107262/}Эволюция юнит-теста}},
+  {{{http://habrahabr.ru/blogs/testing/52929/}Экстремальное программирование, знакомство с Behavior Driven Development и RSpec}}
+
+  Этот подход применим используя и JUnit, и TestNG. Но есть и другие инструменты заточенные именно под BDD. В этой
+  статье я расскажу про такой фреймворк. Называется он {{{http://code.google.com/p/spock/}Spock Framework}}
+  и сочетает в себе не только принципы BDD но и достоинства {{{http://groovy.codehaus.org/}Groovy}}.
+  Да да, именно Groovy. И хотя используется Groovy, используется он и для тестирования Java кода.
+  Примерами использования могут служить Spring, Grails, Tapestry5. Интересно? Тогда читаем дальше.
+
+* Behaviour-driven development
+
+  Итак, напомню что же это такое. Рассмотрим пример. Есть утилита, работающая с ant шаблонами(это те что для выборки файлов).
+  ? - любой 1 и только 1 символ, * - любое количество любых символов, ** - любой путь. Выглядит как-то так:
+
++----+
+public abstract class PathUtils {
+
+  public static boolean matchAntPath(final String path, final String pattern) {
+    // ...
+  }
+
+  public static boolean matchAntPattern(final String path, final String pattern) {
+    // ...
+  }
+}
++----+
+
+  Оба метода проверяют соответствует ли переданная строка шаблону или нет, но метод matchAntPattern
+  учитывает только локальный паттерн без учета пути, matchAntPath учитывает полный путь. Следуя принципам TDD
+  будет создан тест на каждый метод с некоторым набором входных данных и некоторым набором ожидаемых результатов.
+
++----+
+public class TestPathUtils extends Assert {
+
+  @Test(dataProvider = "matchAntPatternData")
+  public void testMatchAntPattern(final String pattern, final String text, final boolean expected) {
+    final boolean actual = PathUtils.matchAntPattern(text, pattern);
+    assertEquals(actual, expected);
+  }
+
+  @Test(dataProvider = "matchAntPathData")
+  public void testMatchAntPath(final String pattern, final String path, final boolean expected) {
+    final boolean actual = PathUtils.matchAntPath(path, pattern);
+    assertEquals(actual, expected);
+  }
+}
++----+
+
+  Возможно сюда еще добавятся тесты на неправильные параметры, когда должны выбрасываться исключения.
+  Теперь давайте посмотрим на это с точки зрения BDD.
+
+  Тест есть не просто тест, а спецификация, и состоит не из методов,
+  а из требований. Выделим требования к PathUtils:
+
+  * Символ ? в шаблоне должен быть эквивалентен любому символу в проверяемой строке
+
+  * Символ ? в шаблоне должен быть эквивалентен 1 и только 1 символу в проверяемой строке
+
+  * Символ * в шаблоне должен быть эквивалентен любому символу в проверяемой строке
+
+  * Символ * в шаблоне должен быть эквивалентен любому количеству символов в проверяемой строке
+
+  * Значения шаблона и проверяемой строки не должны быть null
+
+  []
+
+  Далее, каждое требование имеет свой сценарий проверки, обычно для этого используют термины
+  дано-когда-то(given-when-then). Дано - установки для начала сценария, когда - причина, то - условие выполнения
+  сценария. Например:
+
++----+
+Given:
+PathUtils
+---
+When:
+matchAntPattern(null, "some string")
+---
+Then:
+NullPointerException should be thrown
++----+
+
+  Таким образом тест будет выглядеть примерно так:
+
++----+
+public class PathUtilsSpec extends Assert {
+
+  @Test
+  public void question_character_should_mean_any_character() {
+    assertTrue(PathUtils.matchAntPattern("abb", "a?b"));
+    assertTrue(PathUtils.matchAntPattern("a1b", "a?b"));
+    assertTrue(PathUtils.matchAntPattern("a@b", "a?b"));
+    assertTrue(PathUtils.matchAntPath("abb", "a?b"));
+    assertTrue(PathUtils.matchAntPath("a1b", "a?b"));
+    assertTrue(PathUtils.matchAntPath("a@b", "a?b"));
+    // ...
+  }
+
+  @Test
+  public void question_character_should_mean_only_one_character() {
+    assertFalse(PathUtils.matchAntPattern("ab", "a?b"));
+    assertFalse(PathUtils.matchAntPattern("aabb", "a?b"));
+    assertFalse(PathUtils.matchAntPath("ab", "a?b"));
+    assertFalse(PathUtils.matchAntPath("aabb", "a?b"));
+    // ...
+  }
+
+  @Test
+  public void asterisk_character_should_mean_any_character() {
+    assertTrue(PathUtils.matchAntPattern("abb", "a*b"));
+    assertTrue(PathUtils.matchAntPattern("a1b", "a*b"));
+    assertTrue(PathUtils.matchAntPattern("a@b", "a*b"));
+    assertTrue(PathUtils.matchAntPath("abb", "a*b"));
+    assertTrue(PathUtils.matchAntPath("a1b", "a*b"));
+    assertTrue(PathUtils.matchAntPath("a@b", "a*b"));
+    // ...
+  }
+
+  @Test
+  public void asterisk_character_should_mean_any_number_of_characters() {
+    assertTrue(PathUtils.matchAntPattern("ab", "a*b"));
+    assertTrue(PathUtils.matchAntPattern("aabb", "a*b"));
+    assertTrue(PathUtils.matchAntPath("ab", "a*b"));
+    assertTrue(PathUtils.matchAntPath("aabb", "a*b"));
+    // ...
+  }
+
+  @Test
+  public void double_asterisk_character_should_mean_any_path() {
+    assertTrue(PathUtils.matchAntPath("aaa/bbb", "aaa/**/bbb"));
+    assertTrue(PathUtils.matchAntPath("aaa/ccc/bbb", "aaa/**/bbb"));
+    assertTrue(PathUtils.matchAntPath("aaa/c/c/c/bbb", "aaa/**/bbb"));
+    // ...
+  }
+}
++----+
+
+  Теперь подробнее о Spock Framework.
+
+* Основные возможности
+
+  Как я уже говорил, сценарии пишутся на Groovy. Хорошо это или плохо? Решайте сами, новички могут почитать
+  {{{http://habrahabr.ru/blogs/java/122127/}Groovy за 15 минут – краткий обзор}}.
+  Спецификация должна быть унаследована от spock.lang.Specification. Она может содержать поля,
+  установочные методы(fixture methods), сценарии требований(feature methods), вспомогательные методы(helper methods).
+
+  Поля по умолчанию не шарятся между сценариями, т.е. изменения поля из одного сценария не будут видны из другого
+  сценария. Чтобы расшарить можно зааннотировать с помощью @Shared.
+
+  Установочные методы это:
+
+  * setup() - аналог @Before в JUnit, выполняется перед каждым сценарием
+
+  * cleanup() - аналог @After в JUnit, выполняется после каждого сценария
+
+  * setupSpec() - аналог @BeforeClass в JUnit, выполняется до первого сценария в спецификации
+
+  * cleanupSpec() - аналог @AfterClass в JUnit, выполняется после последнего сценария в спецификации
+
+  []
+
+  Как и в других тестовых фреймворках эти методы используются для того, чтобы не писать один и тот же установочный
+  код для каждого сценария.
+
+  Сценарии требований - это основная часть спецификации. Именно здесь описывается поведение компонента. Принято называть их
+  используя строковые литералы, причем можно использовать любые символы, главное чтобы это название как можно более
+  четко описывало, что этот сценарий делает. Например, в нашем случае:
+
++----+
+class PathUtilsSpec extends Specification {
+
+  def "? character should mean any character"() {
+    // ...
+  }
+
+  def "? character should mean only one character"() {
+    // ...
+  }
+
+  def "* character should mean any character"() {
+    // ...
+  }
+
+  def "* character should mean any number of characters"() {
+    // ...
+  }
+
+  def "** character should mean any path"() {
+    // ...
+  }
+}
++----+
+
+  Каждый сценарий состоит из блоков, которые обозначаются метками:
+
+  * setup - то же самое что и установочный метод setup(), только применяется к конкретному сценарию. Обязательно должен
+  находится до остальных блоков и не должен повторяться. Метка setup: может отсутствовать, также вместо setup:
+  можно писать given:, это сделано для лучшей читаемости(given-when-then)
+
+  * cleanup - то же самое что и метод cleanup(), только применяется к конкретному сценарию. Обязательно должен
+  находиться в конце сценария до блока where, если он есть, и не должен повторяться
+
+  * when-then - это причина и условие выполнения. В when части обычно объявляются переменные,
+  выполняются необходимые действия, в then части проверяются некоторые условия. Это могут быть проверки условий,
+  проверка выброса исключения либо ожидания выполнения некоторых методов у мок-объектов. Данный блок может повторяться,
+  но авторы фреймворка рекомендуют не увлекаться, хороший сценарий должен содержать от 1 до 5 таких блоков
+
+  * expect - это упрощенный when-then блок, где действие и проверка находятся в одном выражении
+
+  * where - это аналог @DataProvider из TestNG, предназначен для создания набора данных для теста
+
+  []
+
+  Теперь обо всем поподробнее. Рассмотрим еще один пример. PathSearcher, предназначен для поиска файлов, использует
+  ant-шаблоны как фильтр для файлов.
+
++----+
+public class PathSearcher {
+
+  public PathSearcher(final String path) {...}
+
+  public PathSearcher include(final String... patterns) {...}
+
+  public PathSearcher exclude(final String... patterns) {...}
+
+  public Set<String> search() {...}
+}
+
++----+
+
+  Напишем к нему требование "должен искать файлы на файловой системе":
+
++----+
+class PathSearcherSpec extends Specification {
+
+  def "it should search files under the file system"() {
+    given:
+    def searcher = PathSearcher.create(inClasspath("test1"))
+    when:
+    def results = searcher.search();
+    then:
+    results.containsAll(["1.txt", "2.txt"]);
+    results.size() == 2
+  }
+
+  private String inClasspath(path) {
+    return ClassLoader.getSystemResource(path).toExternalForm()
+  }
+}
++----+
+
+  Итак, дано - поисковик, который ищет в папке test1 из classpath, проверяем поиск, условие выполнения - поисковик должен
+  найти наши файлы. inClasspath - вспомогательный метод, возвращающий абсолютный путь файла из classpath.
+
+  Еще один пример для PathUtils "значения шаблона и проверяемой строки не должны быть null"
+
++----+
+class PathUtilsSpec extends Specification {
+
+  def "null parameter values are not allowed"() {
+    when:
+    PathUtils.matchAntPattern(null, "some string")
+    then:
+    thrown(NullPointerException)
+
+    when:
+    PathUtils.matchAntPattern("some string", null)
+    then:
+    thrown(NullPointerException)
+
+    when:
+    PathUtils.matchAntPath(null, "some string")
+    then:
+    thrown(NullPointerException)
+
+    when:
+    PathUtils.matchAntPath("some string", null)
+    then:
+    thrown(NullPointerException)
+  }
+}
++----+
+
+  Здесь мы видим метод thrown(...), это ожидание указанного исключения, есть также метод notThrown(...) и
+  noExceptionThrown(). Они для проверки, что заданное/никакое исключение не выбрасывается. Также в then части могут
+  присутствовать ожидания выполнения некоторых методов у мок-объектов, но о них чуть позже. Еще один пример:
+
++----+
+class PathUtilsSpec extends Specification {
+
+  def "? character should mean any character"() {
+    expect:
+    PathUtils.matchAntPattern("abb", "a?b")
+    PathUtils.matchAntPattern("a1b", "a?b")
+    PathUtils.matchAntPattern("a@b", "a?b")
+    PathUtils.matchAntPath("abb", "a?b")
+    PathUtils.matchAntPath("a1b", "a?b")
+    PathUtils.matchAntPath("a@b", "a?b")
+  }
+}
++----+
+
+  Как видно из примера, если и when, и then части можно объединить в одно условие, то удобнее использовать блок expect.
+  Данный сценарий можно улучшить сделав его параметризируемым с помощью блока where:
+
++----+
+class PathUtilsSpec extends Specification {
+
+  def "? character should mean any character"() {
+    expect:
+    PathUtils.matchAntPattern(text, pattern)
+    PathUtils.matchAntPath(text, pattern)
+
+    where:
+    pattern | text
+    "ab?"   | "abc"
+    "ab?"   | "ab1"
+    "ab?"   | "ab@"
+    "a?b"   | "abb"
+    "a?b"   | "a1b"
+    "a?b"   | "a@b"
+    "?ab"   | "aab"
+    "?ab"   | "1ab"
+    "?ab"   | "@ab"
+  }
+}
++----+
+
+  Или так:
+
++----+
+class PathUtilsSpec extends Specification {
+
+  def "? character should mean any character"() {
+    expect:
+    PathUtils.matchAntPattern(text, pattern)
+    PathUtils.matchAntPath(text, pattern)
+
+    where:
+    pattern << ["ab?", "ab?", "ab?", "a?b", "a?b", "a?b", "?ab", "?ab", "?ab"]
+    text    << ["abc", "ab1", "ab@", "abb", "a1b", "a@b", "aab", "1ab", "@ab"]
+  }
+}
++----+
+
+  Или так:
+
++----+
+class PathUtilsSpec extends Specification {
+
+  def "? character should mean any character"() {
+    expect:
+    PathUtils.matchAntPattern(text, pattern)
+    PathUtils.matchAntPath(text, pattern)
+
+    where:
+    [pattern, text] << [
+        ["ab?", "abc"],
+        ["ab?", "ab1"],
+        ["ab?", "ab@"],
+        ["a?b", "abb"],
+        ["a?b", "a1b"],
+        ["a?b", "a@b"],
+        ["?ab", "aab"],
+        ["?ab", "1ab"],
+        ["?ab", "@ab"]
+    ]
+  }
+}
++----+
+
+  Или даже так:
+
++----+
+class PathUtilsSpec extends Specification {
+
+  def "? character should mean any character"() {
+    expect:
+    PathUtils.matchAntPattern(text, pattern)
+    PathUtils.matchAntPath(text, pattern)
+
+    where:
+    [pattern, text] = sql.execute("select pattern, text from path_utils_test")
+  }
+}
++----+
+
+  Думаю из примеров все и так понятно, поэтому не буду заострять на этом внимание. Отмечу только что в where блоке
+  нельзя использовать поля, не помеченные как @Shared.
+
+* Взаимодействия
+
+  Помимо всего прочего, фреймворк позволяет работать с мок-объектами без дополнительных зависимостей.
+  Можно создавать моки для интерфейсов и не final классов. Создание выглядит так:
+
++----+
+    def dao1 = Mock(UserDAO)
+    UserDAO dao2 = Mock()
++----+
+
+  Можно переопределять возвращаемые значения либо сами методы таких объектов. Авторы называют это взаимодействиями
+  (interactions).
+
++----+
+    dao1.findAll() >> [
+        new User(name: "test1", description: "Test User"),
+        new User(name: "test2", description: "Test User"),
+        new User(name: "test3", description: "Test User")
+    ]
+    dao2.findAll() >> { throw new UnsupportedOperationException() }
++----+
+
+  Взаимодействия бывают локальными (определенные в then блоке) и глобальными(определенные в любом другом месте).
+  Локальные доступны только в then блоке, глобальные доступны везде, начиная с точки их определения. Также
+  для локальных взаимодействий можно указать их мощность, это ожидаемое количество вызовов методов.
+
++----+
+class UserCacheSpec extends Specification {
+  def users = [
+      new User(name: "test1", description: "Test User"),
+      new User(name: "test2", description: "Test User"),
+      new User(name: "test3", description: "Test User")
+  ]
+
+  def "dao should be used only once for all user searches until invalidated"() {
+    setup:
+    def dao = Mock(UserDAO)
+    def cache = new UserCacheImpl(dao)
+
+    when:
+    cache.getUser("test1")
+    cache.getUser("test2")
+    cache.getUser("test3")
+    cache.getUser("test4")
+
+    then:
+    1 * dao.findAll() >> users
+  }
+}
++----+
+
+  В этом примере мы создаем мок для UserDAO и реальный объект UserCache использующий этот мок(setup-блок).
+  Затем мы ищем несколько пользователей по имени(when-блок) и в завершение проверяем, чтобы findAll метод,
+  возвращающий заранее подготовленный результат, вызывался только 1 раз.
+
+  Описывая взаимодействия можно использовать шаблоны:
+
++----+
+    1 * dao.findAll() >> users
+    (1..4) * dao.findAll() >> users
+    (2.._) * dao.findAll() >> users
+    (_..4) * dao.findAll() >> users
+
+    _.findAll() >> users
+    dao./find.*/(_) >> users
++----+
+
+  Подробнее можно почитать {{{http://code.google.com/p/spock/wiki/Interactions}здесь}}
+
+* Дополнительные возможности
+
+  Как видно фреймворк и так обладает большим количеством возможностей. Но как и у других фреймворков есть возможность
+  расширения функционала. Примерами могут служить встроенные расширения:
+
+  * @Timeout - задает максимальное время ожидания для сценария, аналог timeout атрибута у @Test из JUnit-а
+
+  * @Ignore - отключает сценарий, аналог @Ignore из JUnit
+
+  * @IgnoreRest - отключает все сценарий кроме зааннотированного, полезно, если надо проверить только 1 тест
+
+  * @FailsWith - задает ожидаемое исключение, аналог аттрибута expected у @Test из JUnit
+
+  * @Unroll - указывает что параметризированные сценарии должны быть указаны как отдельные сценарии для каждой итерации,
+  здесь можно также указать шаблон названия требования, по умолчанию это "#featureName[#iterationCount]"
+
+  []
+
++----+
+class InternalExtensionsSpec extends Specification {
+
+  @FailsWith(NumberFormatException)
+  @Unroll("#featureName (#data)")
+  def "integer parse method should throw exception for wrong parameters"() {
+    Integer.parseInt(data)
+    where:
+    data << ["Hello, World!!!", "0x245", "1798237199878129387197238"]
+  }
+
+  @Ignore
+  @Timeout(3)
+  def "temporary disabled feature"() {
+    setup:
+    sleep(20000)
+  }
+}
++----+
+
+  Интеграции с другими фреймворками вынесены в отдельные модули:
+
+  * Spring - спецификация аннотируется с помощью @ContextConfiguration(locations = "application_context_xml") и в поля
+  можно внедрять зависимости с помощью @Autowired
+
++----+
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+  <bean id="testSymbol" class="java.lang.String">
+    <constructor-arg value="spring"/>
+  </bean>
+</beans>
++----+
+
++----+
+@ContextConfiguration(locations = "context.xml")
+class SpringIntegrationSpec extends Specification {
+
+  @Autowired
+  String testSymbol
+
+  def "test-symbol should be spring"() {
+    expect:
+    testSymbol == "spring"
+  }
+}
++----+
+
+  * Guice - спецификация аннотируется с помощью @UseModules(guice_module_class) и в поля можно внедрять зависимости с
+  помощью @Inject
+
++----+
+public class GuiceModule extends AbstractModule {
+
+  @Override
+  protected void configure() {
+    bind(String.class).annotatedWith(Names.named("test-symbol")).toInstance("guice");
+  }
+}
+
+@UseModules(GuiceModule)
+class GuiceIntegrationSpec extends Specification {
+
+  @Inject
+  @Named("test-symbol")
+  String testSymbol
+
+  def "test-symbol should be guice"() {
+    expect:
+    testSymbol == "guice"
+  }
+}
++----+
+
+  * Tapestry - спецификация аннотируется с помощью @SubModule(tapestry_module_class) и в поля можно внедрять
+  зависимости с помощью аннотации @Inject
+
++----+
+public class TapestryModule {
+
+  public void contributeApplicationDefaults(final MappedConfiguration<String, String> configuration) {
+    configuration.add("test-symbol", "tapestry");
+  }
+}
+
+@SubModule(TapestryModule)
+class TapestryIntegrationSpec extends Specification {
+
+  @Inject
+  @Symbol("test-symbol")
+  String testSymbol
+
+  def "test-symbol should be tapestry"() {
+    expect:
+    testSymbol == "tapestry"
+  }
+}
++----+
+
+  []
+
+  Ну и самое главное, если возникла надобность в собственном функционале, можно добавить свои расширения.
+  Ключевые классы для расширения функционала:
+
+  * IMethodInterceptor, IMethodInvocation - первый для проксирования методов спецификации, позволяет добавлять
+  свой код до и после вызова метода, для упрощения работы можно воспользоваться классом AbstractMethodInterceptor.
+  Второй доступен из первого, служит для работы с оригинальным(проксируемым) методом
+
+  * IGlobalExtension - позволяет работать с метаданными спецификации(SpecInfo), здесь можно посмотреть метаданные по
+  любым компонентам спецификации(поля, установочные методы, сценарии требований) и добавить им свои интерсепторы
+
+  * IAnnotationDrivenExtension - тоже что и предыдущий, только упрощает задачу, если наше расширение привязано к
+  какой-то конкретной аннотации, для упрощения работы можно воспользоваться классом AbstractAnnotationDrivenExtension
+
+  []
+
+  Для создания собственного расширения нужно создать класс-наследник IGlobalExtension либо IAnnotationDrivenExtension,
+  в котором скорее всего к компонентам спецификации будет добавляться свой IMethodInterceptor, и в завершение для
+  IGlobalExtension нужно добавить {{{http://habrahabr.ru/blogs/java/118488/}spi расширение}} в
+  META-INF/services/org.spockframework.runtime.extension.IGlobalExtension, для IAnnotationDrivenExtension нашу
+  аннотацию нужно зааннотирова с помощью @ExtensionAnnotation(extension_class)
+
+  Пример расширения, которое запускает сценарий указанное число раз:
+
++----+
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.METHOD, ElementType.TYPE})
+@ExtensionAnnotation(RepeatExtension.class)
+public @interface Repeat {
+  int value() default 1;
+}
+
+public class RepeatExtension extends AbstractAnnotationDrivenExtension<Repeat> {
+
+  @Override
+  public void visitFeatureAnnotation(Repeat annotation, FeatureInfo feature) {
+    feature.addInterceptor(new RepeatInterceptor(annotation.value()));
+  }
+}
+
+public class RepeatInterceptor extends AbstractMethodInterceptor{
+  private final int count;
+
+  public RepeatInterceptor(int count) {
+    this.count = count;
+  }
+
+  @Override
+  public void interceptFeatureExecution(IMethodInvocation invocation) throws Throwable {
+    for (int i = 0; i < count; i++) {
+      invocation.proceed();
+    }
+  }
+}
++----+
+
++----+
+class CustomExtensionsSpec extends Specification {
+
+  @Repeat(10)
+  def "custom extension"() {
+    expect:
+    Integer.parseInt("123") == 123
+  }
+}
++----+
+
+* Запуск тестов
+
+  Благодаря тому, что Spock-тесты запускаются с помощью JUnit запускалки(Sputnik), они отлично работают под различными
+  IDE(так говорят авторы, я проверял только под идеей). Также можно настроить запуск тестов из ant, maven, gradle.
+  Всю необходимую информацию о настройках можно найти {{{http://code.google.com/p/spock/wiki/GettingStarted}здесь}}.
+
+  Добавлю еще, что для себя я немного подшаманил конфигурацию под maven, т.к. предложенная авторами не работала
+  под maven3. Вот мой вариант конфигурации:
+
++----+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.example</groupId>
+    <artifactId>testing-example</artifactId>
+    <version>1.0-SNAPSHOT</version>
+  </parent>
+
+  <groupId>com.example</groupId>
+  <artifactId>testing-spock</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <name>Testing Spock Framework Example</name>
+  <description>
+    This is an example application that demonstrates Spock Framework usage.
+  </description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-all</artifactId>
+      <version>${groovy-version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.spockframework</groupId>
+      <artifactId>spock-core</artifactId>
+      <version>${spock.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <testResources>
+      <testResource>
+        <directory>src/test/groovy</directory>
+      </testResource>
+      <testResource>
+        <directory>src/test/resources</directory>
+      </testResource>
+    </testResources>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <includes>
+            <include>**/*Spec.groovy</include>
+          </includes>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.gmaven</groupId>
+        <artifactId>gmaven-plugin</artifactId>
+        <version>${gmaven-version}</version>
+        <configuration>
+          <providerSelection>${gmaven-provider}</providerSelection>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>testCompile</goal>
+            </goals>
+          </execution>
+        </executions>
+        <dependencies>
+          <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <version>${groovy-version}</version>
+          </dependency>
+        </dependencies>
+      </plugin>
+    </plugins>
+  </build>
+
+  <properties>
+    <groovy-version>1.7.10</groovy-version>
+    <gmaven-version>1.3</gmaven-version>
+    <gmaven-provider>1.7</gmaven-provider>
+    <spock.version>0.5-groovy-1.7</spock.version>
+  </properties>
+</project>
++----+
+
+* Вывод
+
+  Несмотря на то, что познакомился с этим замечательным фреймворком я совсем недавно и опыта использования его
+  практически не имею, могу с уверенностью сказать, что по возможностям он не уступает, а в некоторых моментах даже
+  превосходит другие фреймворки. Мне очень понравилось писать тесты на Groovy, понравилось писать тесты руководствуясь
+  BDD. Поэтому и вам советую попробовать.
+
+  Примеры можно найти {{{https://github.com/sody/samples/tree/master/testing/testing-spock}здесь}}
+
+* Литература
+
+  * {{{http://behaviour-driven.org/}Behaviour-Driven Development}}
+
+  * {{{http://en.wikipedia.org/wiki/Behavior_Driven_Development}Behaviour Driven Development}}
+
+  * {{{http://code.google.com/p/spock/wiki/SpockBasics}Spock Basics}}
+
+  []
